@@ -1,0 +1,45 @@
+name: $(BuildDefinitionName)_$(date:yyMM).$(date:dd)$(rev:rrr)
+jobs:
+- job: Build
+  pool:
+    vmImage: 'VS2017-Win2016'
+  timeoutInMinutes: 120
+  strategy:
+    maxParallel: 10
+    matrix:
+      Debug_x86:
+        buildPlatform: 'x86'
+        buildConfiguration: 'Debug'
+      Release_x64:
+        buildPlatform: 'x64'
+        buildConfiguration: 'Release'
+
+  variables:
+    appxPackageDir : $(build.artifactStagingDirectory)\$(buildConfiguration)\$(buildPlatform)\AppxPackages
+    buildOutputDir : $(Build.SourcesDirectory)\BuildOutput
+    publishDir : $(Build.ArtifactStagingDirectory)
+
+  steps:
+  - template: AzurePipelinesTemplates\MUX-BuildDevProject-Steps.yml
+  
+  - template: AzurePipelinesTemplates\MUX-PublishProjectOutput-Steps.yml
+
+# Create Nuget Package
+- template: AzurePipelinesTemplates\MUX-CreateNugetPackage-Job.yml
+  parameters:
+    jobName: CreateNugetPackage
+    dependsOn: Build
+    primaryBuildArch: x64
+
+- template: AzurePipelinesTemplates\MUX-NugetReleaseTest-Job.yml
+  parameters:
+    dependsOn: CreateNugetPackage
+    pkgArtifactPath: '$(artifactDownloadPath)\drop'
+    runTests: 'false'
+    matrix: 
+      Debug_x64:
+        buildPlatform: 'x64'
+        buildConfiguration: 'Debug'
+      Release_x64:
+        buildPlatform: 'x64'
+        buildConfiguration: 'Release'
